@@ -27,7 +27,7 @@ public class LiteMobManager : MonoBehaviour
     private readonly List<Vector3> nextVelocities = new List<Vector3>(1024);
 
     private readonly Dictionary<long, List<int>> mobBuckets = new Dictionary<long, List<int>>(2048);
-    private readonly List<List<int>> _mobListPool = new List<List<int>>(128); // пул, ноль GC
+    private readonly List<List<int>> _mobListPool = new List<List<int>>(128); // пїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ GC
 
     private struct MobSnapshot
     {
@@ -84,24 +84,27 @@ public class LiteMobManager : MonoBehaviour
     {
         if (player == null) return;
 
-        LiteWallGrid.EnsureUpToDate(); // общий грид вместо собственного RebuildWallGrid
+        LiteWallGrid.EnsureUpToDate(); // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ RebuildWallGrid
         SnapshotMobs();
         RebuildMobBuckets();
         SimulateAll(dt);
         ApplyAll();
     }
 
-    // Вызывается из LiteCharacterMotor — возвращает тела монстров рядом с позицией.
-    // LiteMobManager стоит в -100, поэтому к моменту вызова снэпшоты уже актуальны.
-    public void QueryNearbyMobBodies(Vector3 position, List<LiteCircleCollider> results)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ LiteCharacterMotor пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
+    // LiteMobManager пїЅпїЅпїЅпїЅпїЅ пїЅ -100, пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
+    public void QueryNearbyMobBodies(Vector3 position, float radius, List<LiteCircleCollider> results)
     {
         results.Clear();
 
         int cx = Mathf.FloorToInt(position.x / hashCellSize);
         int cz = Mathf.FloorToInt(position.z / hashCellSize);
 
-        for (int oz = -1; oz <= 1; oz++)
-            for (int ox = -1; ox <= 1; ox++)
+        // Р”РёР°РїР°Р·РѕРЅ Р·Р°РІРёСЃРёС‚ РѕС‚ СЂР°Р·РјРµСЂР° СЃРµС‚РєРё Рё СЂР°РґРёСѓСЃР° РїРѕРёСЃРєР°.
+        int range = Mathf.Max(1, Mathf.CeilToInt(radius / hashCellSize) + 1);
+
+        for (int oz = -range; oz <= range; oz++)
+            for (int ox = -range; ox <= range; ox++)
             {
                 long key = Hash(cx + ox, cz + oz);
                 if (!mobBuckets.TryGetValue(key, out List<int> list)) continue;
@@ -153,7 +156,7 @@ public class LiteMobManager : MonoBehaviour
 
     private void RebuildMobBuckets()
     {
-        // Возвращаем все списки в пул — ноль аллокаций каждый кадр
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         foreach (var kv in mobBuckets)
         {
             kv.Value.Clear();
@@ -235,7 +238,7 @@ public class LiteMobManager : MonoBehaviour
         for (int i = 0; i < snapshots.Count; i++)
         {
             MobSnapshot s = snapshots[i];
-            Status status = s.status; // Предполагаю, что Status - это struct (как мы обсуждали)
+            Status status = s.status; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ Status - пїЅпїЅпїЅ struct (пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
             LiteMob lm = s.mob;
 
             Vector3 flatPos = s.position;
@@ -268,8 +271,8 @@ public class LiteMobManager : MonoBehaviour
             Vector3 motion = newVelocity * dt;
             Vector3 newPosition = MoveWithWalls(flatPos, s.radius, motion, ref newVelocity);
 
-            // Важно: возвращаем обновленный статус обратно в снэпшот, если это необходимо
-            // (если Status - это struct, присваивание важно для сохранения isHuggingWall)
+            // пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+            // (пїЅпїЅпїЅпїЅ Status - пїЅпїЅпїЅ struct, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ isHuggingWall)
 
             newPosition.y = s.groundY + status.verticalOffset;
 

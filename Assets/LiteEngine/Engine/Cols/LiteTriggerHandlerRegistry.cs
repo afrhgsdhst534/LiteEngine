@@ -1,12 +1,20 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+public interface ILiteTriggerHandler
+{
+    void OnLiteTriggerEnter(LiteCollider other);
+    void OnLiteTriggerStay(LiteCollider other);
+    void OnLiteTriggerExit(LiteCollider other);
+}
+
 public static class LiteTriggerHandlerRegistry
 {
     private sealed class Entry
     {
         public int RefCount;
         public readonly List<ILiteTriggerHandler> Handlers = new List<ILiteTriggerHandler>(4);
+        public bool HandlersBuilt;
     }
 
     private static readonly Dictionary<int, Entry> _entries = new Dictionary<int, Entry>(512);
@@ -23,14 +31,13 @@ public static class LiteTriggerHandlerRegistry
             return;
         }
 
-        entry = new Entry();
-        entry.RefCount = 1;
+        entry = new Entry
+        {
+            RefCount = 1
+        };
 
         RebuildHandlers(go, entry);
-
-        if (entry.Handlers.Count == 0)
-            return;
-
+        entry.HandlersBuilt = true;
         _entries.Add(id, entry);
     }
 
@@ -49,18 +56,39 @@ public static class LiteTriggerHandlerRegistry
         _entries.Remove(id);
     }
 
+    public static void InvokeEnter(GameObject go, LiteCollider cal)
+    {
+        Invoke(go, cal, (handler, collider) => handler.OnLiteTriggerEnter(collider));
+    }
+
     public static void InvokeStay(GameObject go, LiteCollider cal)
+    {
+        Invoke(go, cal, (handler, collider) => handler.OnLiteTriggerStay(collider));
+    }
+
+    public static void InvokeExit(GameObject go, LiteCollider cal)
+    {
+        Invoke(go, cal, (handler, collider) => handler.OnLiteTriggerExit(collider));
+    }
+
+    private static void Invoke(GameObject go, LiteCollider cal, System.Action<ILiteTriggerHandler, LiteCollider> callback)
     {
         if (go == null || cal == null) return;
 
         int id = go.GetInstanceID();
         if (!_entries.TryGetValue(id, out Entry entry))
-            return;
+        {
+            Register(go);
+            if (!_entries.TryGetValue(id, out entry))
+                return;
+        }
 
-        // Если список пустой — пробуем один раз собрать его снова.
-        // Это позволяет подхватить компоненты, которые были добавлены после старта.
-        if (entry.Handlers.Count == 0)
+        // РџРµСЂРµСЃС‚СЂР°РёРІР°РµРј СЃРїРёСЃРѕРє С‚РѕР»СЊРєРѕ РѕРґРёРЅ СЂР°Р·, Р° Р·Р°С‚РµРј РёСЃРїРѕР»СЊР·СѓРµРј РєСЌС€.
+        if (!entry.HandlersBuilt)
+        {
             RebuildHandlers(go, entry);
+            entry.HandlersBuilt = true;
+        }
 
         for (int i = 0; i < entry.Handlers.Count; i++)
         {
@@ -69,7 +97,7 @@ public static class LiteTriggerHandlerRegistry
                 continue;
 
             if (handler is MonoBehaviour mb && mb.isActiveAndEnabled)
-                handler.OnLiteTriggerStay(cal);
+                callback(handler, cal);
         }
     }
 

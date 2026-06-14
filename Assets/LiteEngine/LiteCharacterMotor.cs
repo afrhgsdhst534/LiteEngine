@@ -24,11 +24,10 @@ public class LiteCharacterMotor : MonoBehaviour
     private Vector3 velocity;
     private Vector3 externalForce;
 
-    //  ешируем в Awake Ч GetComponent не вызываетс€ в гор€чем пути
-    private ILiteTriggerHandler _myTriggerHandler;
-
-    // ѕереиспользуемый буфер Ч без аллокаций в FixedUpdate
     private readonly List<LiteCircleCollider> _nearbyMobs = new List<LiteCircleCollider>(32);
+    private readonly List<LiteCollider> _nearbyTriggers = new List<LiteCollider>(64);
+    private readonly Dictionary<int, LiteCollider> _activeTriggers = new Dictionary<int, LiteCollider>(64);
+    private readonly Dictionary<int, LiteCollider> _currentTriggers = new Dictionary<int, LiteCollider>(64);
 
     private void Reset()
     {
@@ -37,8 +36,31 @@ public class LiteCharacterMotor : MonoBehaviour
 
     private void Awake()
     {
+        if (body == null)
             body = GetComponent<LiteCollider>();
+    }
 
+    private void OnEnable()
+    {
+        LiteTriggerHandlerRegistry.Register(gameObject);
+    }
+
+    private void OnDisable()
+    {
+        foreach (KeyValuePair<int, LiteCollider> pair in _activeTriggers)
+        {
+            LiteCollider other = pair.Value;
+            if (other == null)
+                continue;
+
+            LiteTriggerHandlerRegistry.InvokeExit(gameObject, other);
+            if (other.gameObject != gameObject)
+                LiteTriggerHandlerRegistry.InvokeExit(other.gameObject, body);
+        }
+
+        LiteTriggerHandlerRegistry.Unregister(gameObject);
+        _activeTriggers.Clear();
+        _currentTriggers.Clear();
     }
 
     public void SetMoveInput(Vector2 input)
@@ -125,7 +147,7 @@ public class LiteCharacterMotor : MonoBehaviour
             externalForce = Vector3.zero;
     }
 
-    // —тены: LiteWallGrid Ч O(€чейки) вместо O(всех коллайдеров сцены)
+    // LiteWallGrid => O(локально), а не O(всех стенах)
     private void ResolveAgainstWalls(ref Vector3 position, ref Vector3 center, float radius)
     {
         for (int iter = 0; iter < 4; iter++)
@@ -142,12 +164,12 @@ public class LiteCharacterMotor : MonoBehaviour
         }
     }
 
-    // “ела монстров: LiteMobManager Ч O(€чейки) вместо O(всех коллайдеров сцены)
+    // LiteMobManager => O(локально), а не O(всех мобах)
     private void ResolveAgainstMobs(ref Vector3 position, ref Vector3 center, float radius)
     {
         if (LiteMobManager.Instance == null) return;
 
-        LiteMobManager.Instance.QueryNearbyMobBodies(center, _nearbyMobs);
+        LiteMobManager.Instance.QueryNearbyMobBodies(center, radius, _nearbyMobs);
 
         for (int iter = 0; iter < 4; iter++)
         {
@@ -184,8 +206,6 @@ public class LiteCharacterMotor : MonoBehaviour
         }
     }
 
-    private readonly List<LiteCollider> _nearbyTriggers = new List<LiteCollider>(64);
-
     private void CheckTriggers(Vector3 position)
     {
         if (body == null)
@@ -196,24 +216,59 @@ public class LiteCharacterMotor : MonoBehaviour
 
         LiteTriggerGrid.QueryNearbyColliders(center, radius, _nearbyTriggers);
 
+        _currentTriggers.Clear();
+
         for (int i = 0; i < _nearbyTriggers.Count; i++)
         {
             LiteCollider other = _nearbyTriggers[i];
-            if (other == null || other == body)
-                continue;
-
-            if (!other.IsTrigger)
+            if (other == null || other == body || !other.IsTrigger)
                 continue;
 
             if (!other.OverlapCircle(center, radius, out _))
                 continue;
 
-            LiteTriggerHandlerRegistry.InvokeStay(gameObject, other);
+            int id = other.GetInstanceID();
+            if (_currentTriggers.ContainsKey(id))
+                continue;
 
-            if (other.gameObject != gameObject)
-                LiteTriggerHandlerRegistry.InvokeStay(other.gameObject, body);
+            _currentTriggers.Add(id, other);
         }
+
+        foreach (KeyValuePair<int, LiteCollider> pair in _currentTriggers)
+        {
+            LiteCollider other = pair.Value;
+            bool wasActive = _activeTriggers.ContainsKey(pair.Key);
+
+            if (!wasActive)
+            {
+                LiteTriggerHandlerRegistry.InvokeEnter(gameObject, other);
+                if (other.gameObject != gameObject)
+                    LiteTriggerHandlerRegistry.InvokeEnter(other.gameObject, body);
+            }
+            else
+            {
+                LiteTriggerHandlerRegistry.InvokeStay(gameObject, other);
+                if (other.gameObject != gameObject)
+                    LiteTriggerHandlerRegistry.InvokeStay(other.gameObject, body);
+            }
+        }
+
+        foreach (KeyValuePair<int, LiteCollider> pair in _activeTriggers)
+        {
+            if (_currentTriggers.ContainsKey(pair.Key))
+                continue;
+
+            LiteCollider other = pair.Value;
+            LiteTriggerHandlerRegistry.InvokeExit(gameObject, other);
+            if (other.gameObject != gameObject)
+                LiteTriggerHandlerRegistry.InvokeExit(other.gameObject, body);
+        }
+
+        _activeTriggers.Clear();
+        foreach (KeyValuePair<int, LiteCollider> pair in _currentTriggers)
+            _activeTriggers.Add(pair.Key, pair.Value);
     }
+
     private Vector3 GetBodyWorldCenter(Vector3 bodyPosition)
     {
         Vector3 offset = body.WorldCenter - transform.position;

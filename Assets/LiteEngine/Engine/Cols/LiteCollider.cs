@@ -6,6 +6,7 @@ using UnityEngine;
 public abstract class LiteCollider : MonoBehaviour
 {
     public static readonly List<LiteCollider> All = new List<LiteCollider>(1024);
+    protected static readonly HashSet<LiteCollider> _allSet = new HashSet<LiteCollider>();
 
     [Header("Flags")]
     [SerializeField] private bool blocksMovement = true;
@@ -29,7 +30,7 @@ public abstract class LiteCollider : MonoBehaviour
 
     protected virtual void OnEnable()
     {
-        if (!All.Contains(this))
+        if (_allSet.Add(this))
             All.Add(this);
 
         LiteTriggerGrid.Register(this);
@@ -37,14 +38,16 @@ public abstract class LiteCollider : MonoBehaviour
 
     protected virtual void OnDisable()
     {
-        All.Remove(this);
+        if (_allSet.Remove(this))
+            All.Remove(this);
 
         LiteTriggerGrid.Unregister(this);
     }
 
     protected virtual void OnDestroy()
     {
-        All.Remove(this);
+        if (_allSet.Remove(this))
+            All.Remove(this);
 
         LiteTriggerGrid.Unregister(this);
     }
@@ -54,7 +57,7 @@ public abstract class LiteCollider : MonoBehaviour
         LiteTriggerGrid.SyncCollider(this);
     }
 
-    // Вызывай это из кода движения, а не через transform.hasChanged.
+    // РџРµСЂРµСЃС‡РёС‚С‹РІР°РµРј РєРѕР»Р»Р°Р№РґРµСЂ СЃСЂР°Р·Сѓ, Р° РЅРµ Р¶РґС‘Рј transform.hasChanged.
     public void NotifyMoved()
     {
         LiteTriggerGrid.SyncCollider(this);

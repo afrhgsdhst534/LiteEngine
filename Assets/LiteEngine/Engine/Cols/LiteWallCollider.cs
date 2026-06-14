@@ -6,6 +6,7 @@ using UnityEngine;
 public class LiteWallCollider : LiteCollider
 {
     public static new readonly List<LiteWallCollider> All = new List<LiteWallCollider>(1024);
+    private static readonly HashSet<LiteWallCollider> _allSet = new HashSet<LiteWallCollider>();
     public static int Version { get; private set; }
 
     // X = ширина, Y = высота. Глубина не редактируется в инспекторе.
@@ -43,7 +44,7 @@ public class LiteWallCollider : LiteCollider
     protected override void OnEnable()
     {
         base.OnEnable();
-        if (!All.Contains(this))
+        if (_allSet.Add(this))
             All.Add(this);
         Version++;
     }
@@ -51,12 +52,14 @@ public class LiteWallCollider : LiteCollider
     protected override void OnDisable()
     {
         base.OnDisable();
-        All.Remove(this);
+        if (_allSet.Remove(this))
+            All.Remove(this);
         Version++;
     }
 
-    private void OnValidate()
+    protected override void OnValidate()
     {
+        base.OnValidate();
         Version++;
     }
 
