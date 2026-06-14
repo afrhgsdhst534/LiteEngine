@@ -51,7 +51,7 @@ public class LiteCircleCollider : LiteCollider
     }
     public override void DrawGizmo(bool selected)
     {
-        Gizmos.color = selected ? SelectedGizmoColor : GizmoColor;
+        Gizmos.color = selected ? selectedGizmoColor : gizmoColor;
         Gizmos.DrawWireSphere(WorldCenter, ApproxRadius);
         Gizmos.DrawSphere(WorldCenter, Mathf.Min(ApproxRadius * 0.15f, 0.08f));
     }

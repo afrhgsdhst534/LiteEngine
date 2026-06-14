@@ -37,10 +37,8 @@ public class LiteCharacterMotor : MonoBehaviour
 
     private void Awake()
     {
-        if (body == null)
             body = GetComponent<LiteCollider>();
 
-        _myTriggerHandler = GetComponent<ILiteTriggerHandler>();
     }
 
     public void SetMoveInput(Vector2 input)
@@ -111,6 +109,7 @@ public class LiteCharacterMotor : MonoBehaviour
         }
 
         transform.position = position;
+        body.NotifyMoved();
         CheckTriggers(position);
     }
 
@@ -185,31 +184,39 @@ public class LiteCharacterMotor : MonoBehaviour
         }
     }
 
+    private readonly List<LiteCollider> _nearbyTriggers = new List<LiteCollider>(64);
+
     private void CheckTriggers(Vector3 position)
     {
+        if (body == null)
+            return;
+
         Vector3 center = GetBodyWorldCenter(position);
         float radius = Mathf.Max(0.001f, body.ApproxRadius - skinWidth);
-        bool bodyIsTrigger = !body.BlocksMovement;
 
-        for (int i = 0; i < LiteCollider.All.Count; i++)
+        LiteTriggerGrid.QueryNearbyColliders(center, radius, _nearbyTriggers);
+
+        for (int i = 0; i < _nearbyTriggers.Count; i++)
         {
-            LiteCollider other = LiteCollider.All[i];
-            if (other == null || other == body) continue;
+            LiteCollider other = _nearbyTriggers[i];
+            if (other == null || other == body)
+                continue;
 
-            // ‘изические коллайдеры (мобы, стены) Ч пропускаем если мы не триггер
-            if (other.BlocksMovement && !bodyIsTrigger) continue;
+            if (!other.IsTrigger)
+                continue;
 
-            if (!other.OverlapCircle(center, radius, out _)) continue;
+            if (!other.OverlapCircle(center, radius, out _))
+                continue;
 
-            // _myTriggerHandler закеширован в Awake Ч без GetComponent каждый кадр
-            _myTriggerHandler?.OnLiteTriggerStay(other);
+            LiteTriggerHandlerRegistry.InvokeStay(gameObject, other);
 
-            other.GetComponent<ILiteTriggerHandler>()?.OnLiteTriggerStay(body);
+            if (other.gameObject != gameObject)
+                LiteTriggerHandlerRegistry.InvokeStay(other.gameObject, body);
         }
     }
-
     private Vector3 GetBodyWorldCenter(Vector3 bodyPosition)
     {
-        return bodyPosition + (transform.rotation * body.LocalCenter);
+        Vector3 offset = body.WorldCenter - transform.position;
+        return bodyPosition + offset;
     }
 }

@@ -186,6 +186,48 @@ public class LiteMobManager : MonoBehaviour
         return l;
     }
 
+    /*  private void SimulateAll(float dt)
+      {
+          Vector3 playerPos = player.position;
+
+          for (int i = 0; i < snapshots.Count; i++)
+          {
+              MobSnapshot s = snapshots[i];
+              Status status = s.status;
+
+              status.Tick(dt, gravity);
+
+              Vector3 flatPos = s.position;
+              flatPos.y = 0f;
+
+              Vector3 desiredDir = Vector3.zero;
+
+              if (status.CanMove)
+              {
+                  Vector3 toPlayer = playerPos - flatPos;
+                  toPlayer.y = 0f;
+                  if (toPlayer.sqrMagnitude > 0.0001f)
+                      toPlayer.Normalize();
+
+                  Vector3 separation = ComputeSeparation(i, flatPos, s.radius);
+                  desiredDir = toPlayer + separation * separationWeight;
+                  if (desiredDir.sqrMagnitude > 0.0001f)
+                      desiredDir.Normalize();
+              }
+
+              float speedMult = Mathf.Max(0f, status.moveSpeedMult);
+              Vector3 targetVelocity = desiredDir * s.moveSpeed * speedMult + status.externalForce;
+              Vector3 newVelocity = Vector3.MoveTowards(s.velocity, targetVelocity, s.acceleration * dt);
+
+              Vector3 motion = newVelocity * dt;
+              Vector3 newPosition = MoveWithWalls(flatPos, s.radius, motion, ref newVelocity);
+              newPosition.y = s.groundY + status.verticalOffset;
+
+              nextPositions[i] = newPosition;
+              nextVelocities[i] = newVelocity;
+          }
+      }
+    */
     private void SimulateAll(float dt)
     {
         Vector3 playerPos = player.position;
@@ -193,9 +235,8 @@ public class LiteMobManager : MonoBehaviour
         for (int i = 0; i < snapshots.Count; i++)
         {
             MobSnapshot s = snapshots[i];
-            Status status = s.status;
-
-            status.Tick(dt, gravity);
+            Status status = s.status; // Предполагаю, что Status - это struct (как мы обсуждали)
+            LiteMob lm = s.mob;
 
             Vector3 flatPos = s.position;
             flatPos.y = 0f;
@@ -204,13 +245,18 @@ public class LiteMobManager : MonoBehaviour
 
             if (status.CanMove)
             {
-                Vector3 toPlayer = playerPos - flatPos;
-                toPlayer.y = 0f;
-                if (toPlayer.sqrMagnitude > 0.0001f)
-                    toPlayer.Normalize();
-
+                desiredDir = LitePathfinder.GetMoveDirection(
+                    flatPos,
+                    playerPos,
+                    s.radius,
+                    lm.intelligenceLevel,
+                    ref lm.isHuggingWall,
+                    ref lm.hugNormal,
+                    ref lm.hugSign 
+                );
                 Vector3 separation = ComputeSeparation(i, flatPos, s.radius);
-                desiredDir = toPlayer + separation * separationWeight;
+                desiredDir += separation * separationWeight;
+
                 if (desiredDir.sqrMagnitude > 0.0001f)
                     desiredDir.Normalize();
             }
@@ -221,13 +267,16 @@ public class LiteMobManager : MonoBehaviour
 
             Vector3 motion = newVelocity * dt;
             Vector3 newPosition = MoveWithWalls(flatPos, s.radius, motion, ref newVelocity);
+
+            // Важно: возвращаем обновленный статус обратно в снэпшот, если это необходимо
+            // (если Status - это struct, присваивание важно для сохранения isHuggingWall)
+
             newPosition.y = s.groundY + status.verticalOffset;
 
             nextPositions[i] = newPosition;
             nextVelocities[i] = newVelocity;
         }
     }
-
     private Vector3 ComputeSeparation(int selfIndex, Vector3 position, float radius)
     {
         if (!snapshots[selfIndex].blocksMovement)

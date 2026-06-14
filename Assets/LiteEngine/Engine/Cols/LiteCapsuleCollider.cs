@@ -100,7 +100,7 @@ public class LiteCapsuleCollider : LiteCollider
 
     public override void DrawGizmo(bool selected)
     {
-        Gizmos.color = selected ? SelectedGizmoColor : GizmoColor;
+        Gizmos.color = selected ? selectedGizmoColor : gizmoColor;
 
         GetWorldCapsule(out Vector3 top, out Vector3 bottom, out float r);
 

@@ -15,7 +15,11 @@ public class LiteMob : MonoBehaviour
 
     [Header("Behavior")]
     [SerializeField] private bool faceMovementDirection = false;
-
+    [Header("PathFinder")]
+    public bool isHuggingWall;
+    public Vector3 hugNormal;
+    public LiteIntelligence intelligenceLevel;
+    public float hugSign = 1f; // 1 = обходим справа, -1 = обходим слева
     public Status Status { get; private set; } = new Status();
 
     public Vector3 Velocity { get; private set; }

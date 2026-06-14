@@ -15,8 +15,10 @@ public abstract class LiteCollider : MonoBehaviour
     [SerializeField] private bool drawGizmos = true;
     [SerializeField] private bool drawWhenSelected = true;
     [SerializeField] private bool drawWhenUnselected = true;
-    [SerializeField] private Color gizmoColor = new Color(0.15f, 0.8f, 1f, 0.75f);
-    [SerializeField] private Color selectedGizmoColor = new Color(0.15f, 0.8f, 1f, 1f);
+    [SerializeField] public Color gizmoColor = new Color(0.15f, 0.8f, 1f, 0.75f);
+    [SerializeField] public Color selectedGizmoColor = new Color(0.15f, 0.8f, 1f, 1f);
+
+    internal int TriggerGridStamp;
 
     public bool IsTrigger => isTrigger;
     public bool BlocksMovement => blocksMovement && !isTrigger;
@@ -25,22 +27,39 @@ public abstract class LiteCollider : MonoBehaviour
     public abstract Vector3 WorldCenter { get; }
     public abstract float ApproxRadius { get; }
 
-    public Color GizmoColor => gizmoColor;
-    public Color SelectedGizmoColor => selectedGizmoColor;
-
     protected virtual void OnEnable()
     {
         if (!All.Contains(this))
             All.Add(this);
+
+        LiteTriggerGrid.Register(this);
     }
 
     protected virtual void OnDisable()
     {
         All.Remove(this);
+
+        LiteTriggerGrid.Unregister(this);
     }
-    private void OnDestroy()
+
+    protected virtual void OnDestroy()
     {
+        All.Remove(this);
+
+        LiteTriggerGrid.Unregister(this);
     }
+
+    protected virtual void OnValidate()
+    {
+        LiteTriggerGrid.SyncCollider(this);
+    }
+
+    // Вызывай это из кода движения, а не через transform.hasChanged.
+    public void NotifyMoved()
+    {
+        LiteTriggerGrid.SyncCollider(this);
+    }
+
     public abstract bool OverlapCircle(Vector3 circleCenter, float circleRadius, out Vector3 pushOut);
 
     public virtual void DrawGizmo(bool selected) { }

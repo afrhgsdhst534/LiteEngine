@@ -659,6 +659,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1064221402}
   - component: {fileID: 1064221401}
+  - component: {fileID: 1064221403}
   m_Layer: 0
   m_Name: LiteMobManager
   m_TagString: Untagged
@@ -700,6 +701,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1064221403
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1064221400}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 864883bba94df1c47b18cac173e99d65, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gridSize: {x: 640, y: 640}
+  cellSize: 1
+  drawGridGizmos: 1
 --- !u!1 &1212995792
 GameObject:
   m_ObjectHideFlags: 0
@@ -821,6 +837,10 @@ MonoBehaviour:
   friction: 14
   health: 10
   faceMovementDirection: 0
+  isHuggingWall: 0
+  hugNormal: {x: 0, y: 0, z: 0}
+  intelligenceLevel: 1
+  hugSign: -11
 --- !u!114 &1530252765
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -862,7 +882,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 845df8d49c7d5eb4697b31e13123f7d8, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -901,7 +921,7 @@ Transform:
   m_GameObject: {fileID: 1530252763}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.59, y: 0.33, z: -8}
+  m_LocalPosition: {x: 1.27, y: 0.33, z: -8}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1092,7 +1112,7 @@ Transform:
   m_GameObject: {fileID: 1845504603}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0.0452758, z: 0, w: 0.99897456}
-  m_LocalPosition: {x: 0.043720216, y: 0.33, z: -8.34}
+  m_LocalPosition: {x: 5.22, y: 0.33, z: -2.46}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1192,6 +1212,10 @@ MonoBehaviour:
   friction: 14
   health: 10
   faceMovementDirection: 0
+  isHuggingWall: 0
+  hugNormal: {x: 0, y: 0, z: 0}
+  intelligenceLevel: 0
+  hugSign: 1
 --- !u!114 &2132892055
 MonoBehaviour:
   m_ObjectHideFlags: 0
