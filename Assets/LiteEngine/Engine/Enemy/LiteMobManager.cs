@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 [DefaultExecutionOrder(-100)]
 public class LiteMobManager : MonoBehaviour
@@ -28,7 +29,9 @@ public class LiteMobManager : MonoBehaviour
 
     private readonly Dictionary<long, List<int>> mobBuckets = new Dictionary<long, List<int>>(2048);
     private readonly List<List<int>> _mobListPool = new List<List<int>>(128); // ���, ���� GC
+    private readonly Dictionary<LiteMob, Transform> facingVisualRoots = new Dictionary<LiteMob, Transform>(1024);
 
+    private readonly Dictionary<LiteMob, int> mobIndices = new Dictionary<LiteMob, int>(1024);
     private struct MobSnapshot
     {
         public LiteMob mob;
@@ -63,23 +66,44 @@ public class LiteMobManager : MonoBehaviour
     public void ScanScene()
     {
         mobs.Clear();
-        mobs.AddRange(FindObjectsByType<LiteMob>(FindObjectsSortMode.None));
+        mobIndices.Clear();
+        facingVisualRoots.Clear();
+
+        LiteMob[] found = FindObjectsByType<LiteMob>(FindObjectsSortMode.None);
+        for (int i = 0; i < found.Length; i++)
+        {
+            LiteMob mob = found[i];
+            if (mob == null) continue;
+
+            mobIndices[mob] = mobs.Count;
+            mobs.Add(mob);
+        }
+
         LiteWallGrid.EnsureUpToDate();
     }
-
     public void Register(LiteMob mob)
     {
         if (mob == null) return;
-        if (!mobs.Contains(mob))
-            mobs.Add(mob);
-    }
+        if (mobIndices.ContainsKey(mob)) return;
 
+        mobIndices[mob] = mobs.Count;
+        mobs.Add(mob);
+    }
     public void Unregister(LiteMob mob)
     {
         if (mob == null) return;
-        mobs.Remove(mob);
-    }
+        if (!mobIndices.TryGetValue(mob, out int idx)) return;
 
+        int lastIndex = mobs.Count - 1;
+        LiteMob lastMob = mobs[lastIndex];
+
+        mobs[idx] = lastMob;
+        mobIndices[lastMob] = idx;
+
+        mobs.RemoveAt(lastIndex);
+        mobIndices.Remove(mob);
+        facingVisualRoots.Remove(mob);
+    }
     public void Tick(float dt)
     {
         if (player == null) return;
@@ -139,7 +163,7 @@ public class LiteMobManager : MonoBehaviour
             snapshots.Add(new MobSnapshot
             {
                 mob = mob,
-                position = mob.transform.position,
+                position = body != null ? body.WorldCenter : mob.transform.position,
                 velocity = mob.Velocity,
                 radius = radius,
                 moveSpeed = mob.MoveSpeed,
@@ -153,7 +177,6 @@ public class LiteMobManager : MonoBehaviour
             nextVelocities.Add(Vector3.zero);
         }
     }
-
     private void RebuildMobBuckets()
     {
         // ���������� ��� ������ � ��� � ���� ��������� ������ ����
@@ -189,48 +212,6 @@ public class LiteMobManager : MonoBehaviour
         return l;
     }
 
-    /*  private void SimulateAll(float dt)
-      {
-          Vector3 playerPos = player.position;
-
-          for (int i = 0; i < snapshots.Count; i++)
-          {
-              MobSnapshot s = snapshots[i];
-              Status status = s.status;
-
-              status.Tick(dt, gravity);
-
-              Vector3 flatPos = s.position;
-              flatPos.y = 0f;
-
-              Vector3 desiredDir = Vector3.zero;
-
-              if (status.CanMove)
-              {
-                  Vector3 toPlayer = playerPos - flatPos;
-                  toPlayer.y = 0f;
-                  if (toPlayer.sqrMagnitude > 0.0001f)
-                      toPlayer.Normalize();
-
-                  Vector3 separation = ComputeSeparation(i, flatPos, s.radius);
-                  desiredDir = toPlayer + separation * separationWeight;
-                  if (desiredDir.sqrMagnitude > 0.0001f)
-                      desiredDir.Normalize();
-              }
-
-              float speedMult = Mathf.Max(0f, status.moveSpeedMult);
-              Vector3 targetVelocity = desiredDir * s.moveSpeed * speedMult + status.externalForce;
-              Vector3 newVelocity = Vector3.MoveTowards(s.velocity, targetVelocity, s.acceleration * dt);
-
-              Vector3 motion = newVelocity * dt;
-              Vector3 newPosition = MoveWithWalls(flatPos, s.radius, motion, ref newVelocity);
-              newPosition.y = s.groundY + status.verticalOffset;
-
-              nextPositions[i] = newPosition;
-              nextVelocities[i] = newVelocity;
-          }
-      }
-    */
     private void SimulateAll(float dt)
     {
         Vector3 playerPos = player.position;
@@ -238,7 +219,7 @@ public class LiteMobManager : MonoBehaviour
         for (int i = 0; i < snapshots.Count; i++)
         {
             MobSnapshot s = snapshots[i];
-            Status status = s.status; // �����������, ��� Status - ��� struct (��� �� ���������)
+            Status status = s.status; 
             LiteMob lm = s.mob;
 
             Vector3 flatPos = s.position;
@@ -271,8 +252,6 @@ public class LiteMobManager : MonoBehaviour
             Vector3 motion = newVelocity * dt;
             Vector3 newPosition = MoveWithWalls(flatPos, s.radius, motion, ref newVelocity);
 
-            // �����: ���������� ����������� ������ ������� � �������, ���� ��� ����������
-            // (���� Status - ��� struct, ������������ ����� ��� ���������� isHuggingWall)
 
             newPosition.y = s.groundY + status.verticalOffset;
 
@@ -354,12 +333,31 @@ public class LiteMobManager : MonoBehaviour
         {
             LiteMob mob = snapshots[i].mob;
             if (mob == null) continue;
+
             mob.SetVelocity(nextVelocities[i]);
             mob.SetPosition(nextPositions[i]);
-            mob.FaceVelocity();
+            mob.Body?.NotifyMoved();
+
+            ApplyFacingDirection(mob, nextVelocities[i]);
         }
     }
+    private void ApplyFacingDirection(LiteMob mob, Vector3 velocity)
+    {
+        if (mob == null)
+            return;
 
+        Transform visualRoot = mob.visualRoot;
+        if (visualRoot == null)
+            return;
+
+        Vector3 flatVelocity = new Vector3(velocity.x, 0f, velocity.z);
+
+        if (flatVelocity.sqrMagnitude < 0.0001f)
+            return; // если моб стоит, не крутим
+
+        Quaternion targetRotation = Quaternion.LookRotation(flatVelocity.normalized, Vector3.up);
+        visualRoot.localRotation = targetRotation;
+    }
     private long Hash(int x, int z)
     {
         unchecked { return ((long)x << 32) ^ (uint)z; }
