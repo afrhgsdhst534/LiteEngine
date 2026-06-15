@@ -39,8 +39,25 @@ public class LiteCircleCollider : LiteCollider
         float rr = ApproxRadius + circleRadius;
         float sqr = delta.sqrMagnitude;
 
-        if (sqr >= rr * rr || sqr <= 0.000001f)
+        if (sqr >= rr * rr)
             return false;
+
+        if (sqr <= 0.000001f)
+        {
+            Vector3 fallback = transform.right;
+            fallback.y = 0f;
+            if (fallback.sqrMagnitude <= 0.000001f)
+            {
+                fallback = transform.forward;
+                fallback.y = 0f;
+            }
+            if (fallback.sqrMagnitude <= 0.000001f)
+                fallback = Vector3.right;
+
+            fallback.Normalize();
+            pushOut = fallback * rr;
+            return true;
+        }
 
         float dist = Mathf.Sqrt(sqr);
         Vector3 dir = delta / dist;

@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Разделяемый пространственный хеш для стен.
-// Используется и LiteMobManager, и LiteCharacterMotor.
-// Пул List-ов: ноль аллокаций после прогрева.
+// Р Р°Р·РґРµР»СЏРµРјС‹Р№ РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІРµРЅРЅС‹Р№ С…РµС€ РґР»СЏ СЃС‚РµРЅ.
+// РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ Рё LiteMobManager, Рё LiteCharacterMotor.
+// РџСѓР» List-РѕРІ: РЅРѕР»СЊ Р°Р»Р»РѕРєР°С†РёР№ РїРѕСЃР»Рµ РїСЂРѕРіСЂРµРІР°.
 public static class LiteWallGrid
 {
     public const float CellSize = 2f;
@@ -18,11 +18,20 @@ public static class LiteWallGrid
             Rebuild();
     }
 
-    // Возвращает толчок от стены с наибольшей пенетрацией.
-    // Проверяет только 9 ближайших ячеек — O(k) вместо O(N всех стен).
+    // Р’РѕР·РІСЂР°С‰Р°РµС‚ С‚РѕР»С‡РѕРє РѕС‚ СЃС‚РµРЅС‹ СЃ РЅР°РёР±РѕР»СЊС€РµР№ РїРµРЅРµС‚СЂР°С†РёРµР№.
+    // РџСЂРѕРІРµСЂСЏРµС‚ С‚РѕР»СЊРєРѕ 9 Р±Р»РёР¶Р°Р№С€РёС… СЏС‡РµРµРє вЂ” O(k) РІРјРµСЃС‚Рѕ O(N РІСЃРµС… СЃС‚РµРЅ).
     public static bool QueryDeepestPush(
         Vector3 pos, float radius,
         out Vector3 push, out Vector3 normal)
+    {
+        return QueryDeepestPush(pos, radius, out push, out normal, out _);
+    }
+
+    // РЎРѕРІРјРµСЃС‚РёРјР°СЏ РїРµСЂРµРіСЂСѓР·РєР°: РµСЃР»Рё РЅСѓР¶РµРЅ СЃР°Рј collider СЃС‚РµРЅС‹, РµРіРѕ РјРѕР¶РЅРѕ РїРѕР»СѓС‡РёС‚СЊ Р·РґРµСЃСЊ.
+    public static bool QueryDeepestPush(
+        Vector3 pos, float radius,
+        out Vector3 push, out Vector3 normal,
+        out LiteWallCollider hitWall)
     {
         EnsureUpToDate();
 
@@ -32,6 +41,7 @@ public static class LiteWallGrid
         float bestPen = 0f;
         push = Vector3.zero;
         normal = Vector3.zero;
+        hitWall = null;
         bool found = false;
 
         for (int oz = -1; oz <= 1; oz++)
@@ -42,8 +52,13 @@ public static class LiteWallGrid
 
                 for (int i = 0; i < list.Count; i++)
                 {
-                    LiteWallCollider wall = LiteWallCollider.All[list[i]];
-                    if (wall == null || !wall.BlocksMovement) continue;
+                    int wallIndex = list[i];
+                    if ((uint)wallIndex >= (uint)LiteWallCollider.All.Count)
+                        continue;
+
+                    LiteWallCollider wall = LiteWallCollider.All[wallIndex];
+                    if (wall == null || !wall.BlocksMovement)
+                        continue;
 
                     if (wall.OverlapCircle(pos, radius, out Vector3 p))
                     {
@@ -53,17 +68,19 @@ public static class LiteWallGrid
                             bestPen = pen;
                             push = p;
                             normal = pen > 1e-6f ? p / pen : Vector3.zero;
+                            hitWall = wall;
                             found = true;
                         }
                     }
                 }
             }
+
         return found;
     }
 
     private static void Rebuild()
     {
-        // Возвращаем все живые списки в пул — без new
+        // Р’РѕР·РІСЂР°С‰Р°РµРј РІСЃРµ Р¶РёРІС‹Рµ СЃРїРёСЃРєРё РІ РїСѓР» вЂ” Р±РµР· new
         foreach (var kv in _buckets)
         {
             kv.Value.Clear();
