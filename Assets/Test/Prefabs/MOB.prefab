@@ -152,7 +152,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   body: {fileID: 5297607293932673076}
-  moveSpeed: 4
+  moveSpeed: 7
   acceleration: 18
   health: 10
   isHuggingWall: 0

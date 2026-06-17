@@ -7,8 +7,6 @@ public class LiteWallCollider : LiteCollider
 {
     public static new readonly List<LiteWallCollider> All = new List<LiteWallCollider>(1024);
     private static new readonly HashSet<LiteWallCollider> _allSet = new HashSet<LiteWallCollider>();
-    public static int Version { get; private set; }
-
     // X = ширина, Y = высота. Глубина не редактируется в инспекторе.
     [Header("Shape")]
     [Tooltip("X = ширина, Y = высота. Глубина скрыта и фиксирована внутри компонента.")]
@@ -46,7 +44,6 @@ public class LiteWallCollider : LiteCollider
         base.OnEnable();
         if (_allSet.Add(this))
             All.Add(this);
-        Version++;
     }
 
     protected override void OnDisable()
@@ -54,13 +51,11 @@ public class LiteWallCollider : LiteCollider
         base.OnDisable();
         if (_allSet.Remove(this))
             All.Remove(this);
-        Version++;
     }
 
     protected override void OnValidate()
     {
         base.OnValidate();
-        Version++;
     }
 
     public override bool OverlapCircle(Vector3 circleCenter, float circleRadius, out Vector3 pushOut)

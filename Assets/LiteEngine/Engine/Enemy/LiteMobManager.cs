@@ -35,15 +35,6 @@ public class LiteMobManager : MonoBehaviour
     private readonly List<LiteCollider> _nearbyTriggers = new List<LiteCollider>(64);
     private readonly Dictionary<LiteMob, Dictionary<int, LiteCollider>> _activeTriggersByMob = new Dictionary<LiteMob, Dictionary<int, LiteCollider>>(1024);
     private readonly Dictionary<LiteMob, Dictionary<int, LiteCollider>> _currentTriggersByMob = new Dictionary<LiteMob, Dictionary<int, LiteCollider>>(1024);
-
-    private readonly Dictionary<long, CellStats> mobCellStats = new Dictionary<long, CellStats>(2048);
-
-    private struct CellStats
-    {
-        public int count;
-        public Vector3 sumPosition;
-        public float sumRadius;
-    }
     private struct MobSnapshot
     {
         public LiteMob mob;
@@ -91,7 +82,6 @@ public class LiteMobManager : MonoBehaviour
             mobs.Add(mob);
         }
 
-        LiteWallGrid.EnsureUpToDate();
     }
     public void Register(LiteMob mob)
     {
@@ -141,7 +131,6 @@ public class LiteMobManager : MonoBehaviour
     {
         if (player == null) return;
 
-        LiteWallGrid.EnsureUpToDate(); 
         SnapshotMobs();
         RebuildMobBuckets();
         SimulateAll(dt);
