@@ -11,7 +11,6 @@ public class LiteMobManager : MonoBehaviour
     [SerializeField] private Transform player;
 
     [Header("Mass AI")]
-    [SerializeField] private float gravity = -30f;
     [SerializeField] private float separationWeight = 1.2f;
     [SerializeField] private float hashCellSize = 2f;
 
@@ -32,6 +31,19 @@ public class LiteMobManager : MonoBehaviour
     private readonly Dictionary<LiteMob, Transform> facingVisualRoots = new Dictionary<LiteMob, Transform>(1024);
 
     private readonly Dictionary<LiteMob, int> mobIndices = new Dictionary<LiteMob, int>(1024);
+
+    private readonly List<LiteCollider> _nearbyTriggers = new List<LiteCollider>(64);
+    private readonly Dictionary<LiteMob, Dictionary<int, LiteCollider>> _activeTriggersByMob = new Dictionary<LiteMob, Dictionary<int, LiteCollider>>(1024);
+    private readonly Dictionary<LiteMob, Dictionary<int, LiteCollider>> _currentTriggersByMob = new Dictionary<LiteMob, Dictionary<int, LiteCollider>>(1024);
+
+    private readonly Dictionary<long, CellStats> mobCellStats = new Dictionary<long, CellStats>(2048);
+
+    private struct CellStats
+    {
+        public int count;
+        public Vector3 sumPosition;
+        public float sumRadius;
+    }
     private struct MobSnapshot
     {
         public LiteMob mob;
@@ -102,29 +114,45 @@ public class LiteMobManager : MonoBehaviour
 
         mobs.RemoveAt(lastIndex);
         mobIndices.Remove(mob);
+        if (_activeTriggersByMob.TryGetValue(mob, out Dictionary<int, LiteCollider> active))
+        {
+            LiteCircleCollider body = mob.Body;
+
+            if (body != null)
+            {
+                foreach (KeyValuePair<int, LiteCollider> pair in active)
+                {
+                    LiteCollider other = pair.Value;
+                    if (other == null) continue;
+
+                    LiteTriggerHandlerRegistry.InvokeExit(mob.gameObject, other);
+                    if (other.gameObject != mob.gameObject)
+                        LiteTriggerHandlerRegistry.InvokeExit(other.gameObject, body);
+                }
+            }
+
+            _activeTriggersByMob.Remove(mob);
+        }
+
+        _currentTriggersByMob.Remove(mob);
         facingVisualRoots.Remove(mob);
     }
     public void Tick(float dt)
     {
         if (player == null) return;
 
-        LiteWallGrid.EnsureUpToDate(); // ����� ���� ������ ������������ RebuildWallGrid
+        LiteWallGrid.EnsureUpToDate(); 
         SnapshotMobs();
         RebuildMobBuckets();
         SimulateAll(dt);
         ApplyAll();
     }
-
-    // ���������� �� LiteCharacterMotor � ���������� ���� �������� ����� � ��������.
-    // LiteMobManager ����� � -100, ������� � ������� ������ �������� ��� ���������.
     public void QueryNearbyMobBodies(Vector3 position, float radius, List<LiteCircleCollider> results)
     {
         results.Clear();
 
         int cx = Mathf.FloorToInt(position.x / hashCellSize);
         int cz = Mathf.FloorToInt(position.z / hashCellSize);
-
-        // Диапазон зависит от размера сетки и радиуса поиска.
         int range = Mathf.Max(1, Mathf.CeilToInt(radius / hashCellSize) + 1);
 
         for (int oz = -range; oz <= range; oz++)
@@ -153,7 +181,7 @@ public class LiteMobManager : MonoBehaviour
         for (int i = 0; i < mobs.Count; i++)
         {
             LiteMob mob = mobs[i];
-            if (mob == null || !mob.isActiveAndEnabled || !mob.IsAlive)
+            if (mob == null || !mob.isActiveAndEnabled)
                 continue;
 
             LiteCircleCollider body = mob.Body;
@@ -179,7 +207,6 @@ public class LiteMobManager : MonoBehaviour
     }
     private void RebuildMobBuckets()
     {
-        // ���������� ��� ������ � ��� � ���� ��������� ������ ����
         foreach (var kv in mobBuckets)
         {
             kv.Value.Clear();
@@ -337,7 +364,7 @@ public class LiteMobManager : MonoBehaviour
             mob.SetVelocity(nextVelocities[i]);
             mob.SetPosition(nextPositions[i]);
             mob.Body?.NotifyMoved();
-
+            CheckTriggersForMob(mob);
             ApplyFacingDirection(mob, nextVelocities[i]);
         }
     }
@@ -353,10 +380,86 @@ public class LiteMobManager : MonoBehaviour
         Vector3 flatVelocity = new Vector3(velocity.x, 0f, velocity.z);
 
         if (flatVelocity.sqrMagnitude < 0.0001f)
-            return; // если моб стоит, не крутим
+            return; 
 
         Quaternion targetRotation = Quaternion.LookRotation(flatVelocity.normalized, Vector3.up);
         visualRoot.localRotation = targetRotation;
+    }
+    private void CheckTriggersForMob(LiteMob mob)
+    {
+        if (mob == null) return;
+
+        LiteCircleCollider body = mob.Body;
+        if (body == null) return;
+
+        if (!_currentTriggersByMob.TryGetValue(mob, out Dictionary<int, LiteCollider> current))
+        {
+            current = new Dictionary<int, LiteCollider>(16);
+            _currentTriggersByMob.Add(mob, current);
+        }
+
+        if (!_activeTriggersByMob.TryGetValue(mob, out Dictionary<int, LiteCollider> active))
+        {
+            active = new Dictionary<int, LiteCollider>(16);
+            _activeTriggersByMob.Add(mob, active);
+        }
+
+        current.Clear();
+
+        Vector3 center = body.WorldCenter;
+        float radius = body.ApproxRadius;
+
+        _nearbyTriggers.Clear();
+        LiteTriggerGrid.QueryNearbyColliders(center, radius, _nearbyTriggers);
+
+        for (int i = 0; i < _nearbyTriggers.Count; i++)
+        {
+            LiteCollider other = _nearbyTriggers[i];
+            if (other == null || other == body || !other.IsTrigger)
+                continue;
+
+            if (!other.OverlapCircle(center, radius, out _))
+                continue;
+
+            current[other.GetInstanceID()] = other;
+        }
+
+        foreach (KeyValuePair<int, LiteCollider> pair in current)
+        {
+            LiteCollider other = pair.Value;
+            bool wasActive = active.ContainsKey(pair.Key);
+
+            if (!wasActive)
+            {
+                LiteTriggerHandlerRegistry.InvokeEnter(mob.gameObject, other);
+                if (other.gameObject != mob.gameObject)
+                    LiteTriggerHandlerRegistry.InvokeEnter(other.gameObject, body);
+            }
+            else
+            {
+                LiteTriggerHandlerRegistry.InvokeStay(mob.gameObject, other);
+                if (other.gameObject != mob.gameObject)
+                    LiteTriggerHandlerRegistry.InvokeStay(other.gameObject, body);
+            }
+        }
+
+        foreach (KeyValuePair<int, LiteCollider> pair in active)
+        {
+            if (current.ContainsKey(pair.Key))
+                continue;
+
+            LiteCollider other = pair.Value;
+            if (other == null)
+                continue;
+
+            LiteTriggerHandlerRegistry.InvokeExit(mob.gameObject, other);
+            if (other.gameObject != mob.gameObject)
+                LiteTriggerHandlerRegistry.InvokeExit(other.gameObject, body);
+        }
+
+        active.Clear();
+        foreach (KeyValuePair<int, LiteCollider> pair in current)
+            active.Add(pair.Key, pair.Value);
     }
     private long Hash(int x, int z)
     {

@@ -6,7 +6,7 @@ using UnityEngine;
 public class LiteWallCollider : LiteCollider
 {
     public static new readonly List<LiteWallCollider> All = new List<LiteWallCollider>(1024);
-    private static readonly HashSet<LiteWallCollider> _allSet = new HashSet<LiteWallCollider>();
+    private static new readonly HashSet<LiteWallCollider> _allSet = new HashSet<LiteWallCollider>();
     public static int Version { get; private set; }
 
     // X = ширина, Y = высота. Глубина не редактируется в инспекторе.
@@ -61,15 +61,6 @@ public class LiteWallCollider : LiteCollider
     {
         base.OnValidate();
         Version++;
-    }
-
-    private void Update()
-    {
-        if (transform.hasChanged)
-        {
-            transform.hasChanged = false;
-            Version++;
-        }
     }
 
     public override bool OverlapCircle(Vector3 circleCenter, float circleRadius, out Vector3 pushOut)

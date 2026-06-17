@@ -4,8 +4,8 @@ public enum LiteIntelligence
 {
     Primitive = 0,   // Тупой напролом (Уклонение лучами)
     WallHugger = 1,  // Запоминает стену и скользит вдоль нее
-    Tactician = 2,   // Локальный A* при застревании
-    Genius = 3       // Движение по глобальному Flow Field
+    Tactician = 2,   // Локальный A* при застревании - do it later
+    Genius = 3       // Движение по глобальному Flow Field- do it later
 }
 
 public static class LitePathfinder

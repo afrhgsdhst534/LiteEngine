@@ -1,5 +1,5 @@
 using UnityEngine;
-
+// доделать потом - do it later
 [System.Serializable]
 public sealed class Status
 {
